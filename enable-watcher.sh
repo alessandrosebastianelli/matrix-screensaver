@@ -1,7 +1,29 @@
 #!/usr/bin/env bash
 set -e
 
-LINE='[[ $- == *i* ]] && [ -z "$MATRIX_WATCH_PID" ] && { "$HOME/.local/bin/screensaver-watch.sh" & MATRIX_WATCH_PID=$!; disown; }'
+read -r -d '' BLOCK <<'EOF' || true
+# --- matrix-screensaver: begin ---
+if [[ $- == *i* ]]; then
+  export MATRIX_ACTIVITY_FILE="/tmp/.matrix-activity-$$"
+  touch "$MATRIX_ACTIVITY_FILE" 2>/dev/null
+  if [ -n "$ZSH_VERSION" ]; then
+    matrix_touch_activity() { touch "$MATRIX_ACTIVITY_FILE" 2>/dev/null; }
+    autoload -Uz add-zsh-hook 2>/dev/null && add-zsh-hook precmd matrix_touch_activity
+  elif [ -n "$BASH_VERSION" ]; then
+    matrix_touch_activity() { touch "$MATRIX_ACTIVITY_FILE" 2>/dev/null; }
+    case ";$PROMPT_COMMAND;" in
+      *";matrix_touch_activity;"*) ;;
+      *) PROMPT_COMMAND="matrix_touch_activity;${PROMPT_COMMAND}" ;;
+    esac
+  fi
+  if [ -z "$MATRIX_WATCH_PID" ]; then
+    "$HOME/.local/bin/screensaver-watch.sh" &
+    MATRIX_WATCH_PID=$!
+    disown
+  fi
+fi
+# --- matrix-screensaver: end ---
+EOF
 
 declare -a candidates=()
 [ -f "$HOME/.config/bash/common.bashrc" ] && candidates+=("$HOME/.config/bash/common.bashrc")
@@ -36,13 +58,13 @@ case "$choice" in
 esac
 
 for f in "${selected[@]}"; do
-  if grep -qxF "$LINE" "$f" 2>/dev/null; then
+  if grep -qF "matrix-screensaver: begin" "$f" 2>/dev/null; then
     echo "Already present in $f, skipping."
   else
-    echo "$LINE" >> "$f"
+    printf '\n%s\n' "$BLOCK" >> "$f"
     echo "Added to $f"
   fi
 done
 
 echo
-echo "Done. Run: source <file> (or open a new shell) to activate."
+echo "Done. Open a new shell (or run: source <file>) to activate."

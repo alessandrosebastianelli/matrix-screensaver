@@ -11,12 +11,12 @@ inactivity and exits on any keypress.
   column length, a white "head" character, a green trail fading from bright
   to dim, and occasional glyph flicker for the classic Matrix look.
 
-- **`screensaver-watch.sh`** — a background watcher loop. Every 5 seconds it
-  checks the access time (`atime`) of the current tty device. Reading the
-  tty's atime is what changes whenever you type, so it works as an
-  inactivity signal without needing X11, `xprintidle`, or any iTerm-specific
-  API. When idle time passes the threshold, it launches `matrix.py` on that
-  same tty; any keypress ends the animation and the watcher resumes polling.
+- **`screensaver-watch.sh`** — a background watcher loop. It polls (every
+  5 seconds) the modification time of an activity timestamp file that the
+  shell touches on every prompt. When idle time passes the threshold, it
+  launches `matrix.py` on your tty; any keypress ends the animation and the
+  watcher resumes polling. This avoids relying on tty `atime`, which macOS
+  (APFS) does not update reliably.
 
 - **`install.sh`** — copies both scripts to `~/.local/bin` and prints the
   shell snippet needed to auto-start the watcher in new interactive shells.
@@ -99,9 +99,11 @@ Then remove the auto-start line from your shell config.
 
 ## Notes
 
+- Idle time is measured from the last shell prompt (each time a command
+  finishes and a new prompt is shown), not raw keystrokes. In practice this
+  means the countdown resets whenever you run a command; just moving the
+  cursor or typing without pressing Enter does not reset it.
 - The watcher only triggers at the shell prompt — it does not interrupt
-  programs actively running in the foreground (e.g. a long `vim` session
-  keeps the tty's atime fresh as you type, so the screensaver won't fire
-  mid-edit).
-- Works identically in iTerm2 since it relies only on standard tty/ANSI
-  behavior, no iTerm-specific integration required.
+  programs actively running in the foreground.
+- Works identically in iTerm2 since it relies only on standard shell hooks
+  and ANSI rendering, no iTerm-specific integration required.
