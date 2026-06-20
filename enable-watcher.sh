@@ -5,16 +5,19 @@ read -r -d '' BLOCK <<'EOF' || true
 # --- matrix-screensaver: begin ---
 if [[ $- == *i* ]]; then
   export MATRIX_ACTIVITY_FILE="/tmp/.matrix-activity-$$"
+  export MATRIX_SHELL_PID="$$"
   touch "$MATRIX_ACTIVITY_FILE" 2>/dev/null
+  matrix_touch_activity() { touch "$MATRIX_ACTIVITY_FILE" 2>/dev/null; }
+  matrix_run() { "$HOME/.local/bin/matrix.py"; touch "$MATRIX_ACTIVITY_FILE" 2>/dev/null; }
   if [ -n "$ZSH_VERSION" ]; then
-    matrix_touch_activity() { touch "$MATRIX_ACTIVITY_FILE" 2>/dev/null; }
     autoload -Uz add-zsh-hook 2>/dev/null && add-zsh-hook precmd matrix_touch_activity
+    TRAPUSR1() { matrix_run; }
   elif [ -n "$BASH_VERSION" ]; then
-    matrix_touch_activity() { touch "$MATRIX_ACTIVITY_FILE" 2>/dev/null; }
     case ";$PROMPT_COMMAND;" in
       *";matrix_touch_activity;"*) ;;
       *) PROMPT_COMMAND="matrix_touch_activity;${PROMPT_COMMAND}" ;;
     esac
+    trap matrix_run USR1
   fi
   if [ -z "$MATRIX_WATCH_PID" ]; then
     "$HOME/.local/bin/screensaver-watch.sh" &

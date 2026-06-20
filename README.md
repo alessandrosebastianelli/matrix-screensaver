@@ -1,7 +1,7 @@
 # matrix-screensaver
 
-A Matrix-style digital rain screensaver for the terminal (macOS, Linux, plain
-terminal, SSH, and iTerm2). Activates automatically after a period of
+A Matrix-style digital rain screensaver for the terminal (macOS, Linux,
+plain terminal, SSH, and iTerm2). Activates automatically after a period of
 inactivity and exits on any keypress.
 
 ## How it works
@@ -11,21 +11,31 @@ inactivity and exits on any keypress.
   column length, a white "head" character, a green trail fading from bright
   to dim, and occasional glyph flicker for the classic Matrix look.
 
-- **`screensaver-watch.sh`** — a background watcher loop. It polls (every
-  5 seconds) the modification time of an activity timestamp file that the
-  shell touches on every prompt. When idle time passes the threshold, it
-  launches `matrix.py` on your tty; any keypress ends the animation and the
-  watcher resumes polling. This avoids relying on tty `atime`, which macOS
-  (APFS) does not update reliably.
+- **Idle detection** — a lightweight background watcher polls an activity
+  timestamp file (touched by a shell prompt hook every time you run a
+  command). When idle time passes the threshold, the watcher sends
+  `SIGUSR1` to your interactive shell — the shell's own trap then runs
+  `matrix.py` in its own foreground context. The watcher itself never
+  touches the terminal, so it can't steal terminal control or crash the
+  shell. (An earlier version used bash's `TMOUT`, but `TMOUT` on macOS's
+  stock bash 3.2 force-exits the shell on timeout regardless of any trap —
+  that's why this approach uses a signal instead.)
 
-- **`install.sh`** — copies both scripts to `~/.local/bin` and prints the
-  shell snippet needed to auto-start the watcher in new interactive shells.
+- **`screensaver-watch.sh`** — the background polling loop described above.
+
+- **`enable-watcher.sh`** — detects which shell config files you have
+  (`~/.config/bash/common.bashrc`, `~/.bashrc`, `~/.zshrc`) and lets you add
+  the hook to one, several, or all of them via a terminal menu.
+
+- **`install.sh`** — copies `matrix.py`, `screensaver-watch.sh`, and
+  `enable-watcher.sh` to `~/.local/bin`, then runs `enable-watcher.sh`
+  automatically.
 
 ## Requirements
 
 - Python 3 (with the standard `curses` module — included by default on
   macOS and Linux)
-- bash, `stat`, `tty`, `date` (all standard on macOS/Linux)
+- bash and/or zsh
 
 ## Installation
 
@@ -36,26 +46,10 @@ chmod +x install.sh
 ./install.sh
 ```
 
-This installs:
-
-- `~/.local/bin/matrix.py`
-- `~/.local/bin/screensaver-watch.sh`
-
-and prints a line to add to your shell config.
-
-### Enable auto-start
-
-`install.sh` already runs the menu for you (see above). If you need to
-re-run it later — e.g. after adding a new shell config — call it directly:
-
-```bash
-~/.local/bin/enable-watcher.sh
-```
-
-It detects which shell config files you have (`~/.config/bash/common.bashrc`,
-`~/.bashrc`, `~/.zshrc`) and lets you pick one, several, or all of them via a
-simple terminal menu. It's idempotent — re-running it won't duplicate the
-line if it's already present.
+This installs `~/.local/bin/matrix.py`, `~/.local/bin/screensaver-watch.sh`,
+and `~/.local/bin/enable-watcher.sh`, then immediately runs the menu to
+wire up the auto-start hook in your shell config(s) — no extra manual step
+needed.
 
 Make sure `~/.local/bin` is on your `PATH`:
 
@@ -69,10 +63,23 @@ Then reload your shell:
 source ~/.bashrc   # or source ~/.zshrc
 ```
 
+### Re-running the menu later
+
+If you add a new shell config later, or want to change which files have the
+hook, just re-run:
+
+```bash
+~/.local/bin/enable-watcher.sh
+```
+
+It's idempotent — re-running it won't duplicate the block if it's already
+present in a given file.
+
 ### Configuration
 
-Set this **before** the auto-start line to change the idle timeout (default
-120 seconds):
+Set this **before sourcing** your shell config (e.g. in `~/.profile`, or
+above the matrix-screensaver block in the config file itself) to change the
+idle timeout (default 120 seconds):
 
 ```bash
 export MATRIX_IDLE_SECONDS=180
@@ -91,19 +98,20 @@ Press any key to exit.
 ## Uninstall
 
 ```bash
-rm ~/.local/bin/matrix.py ~/.local/bin/screensaver-watch.sh
 pkill -f screensaver-watch.sh
+rm ~/.local/bin/matrix.py ~/.local/bin/screensaver-watch.sh ~/.local/bin/enable-watcher.sh
 ```
 
-Then remove the auto-start line from your shell config.
+Then remove the `# --- matrix-screensaver: begin ---` … `# --- matrix-screensaver: end ---`
+block from whichever shell config file(s) you added it to.
 
 ## Notes
 
-- Idle time is measured from the last shell prompt (each time a command
-  finishes and a new prompt is shown), not raw keystrokes. In practice this
-  means the countdown resets whenever you run a command; just moving the
-  cursor or typing without pressing Enter does not reset it.
-- The watcher only triggers at the shell prompt — it does not interrupt
-  programs actively running in the foreground.
-- Works identically in iTerm2 since it relies only on standard shell hooks
-  and ANSI rendering, no iTerm-specific integration required.
+- Idle time is measured from the last command run at the shell prompt (the
+  activity file is touched once per prompt), not raw keystrokes. Just
+  moving the cursor or typing without pressing Enter doesn't reset it.
+- The screensaver only triggers via the shell's own `SIGUSR1` trap while
+  it's idle — running programs in the foreground (e.g. `vim`) are
+  unaffected, since the signal interrupts the shell's prompt, not theirs.
+- Works identically in iTerm2 since it relies only on standard shell traps,
+  signals, and ANSI rendering — no iTerm-specific integration required.
