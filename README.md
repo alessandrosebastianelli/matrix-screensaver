@@ -45,15 +45,17 @@ and prints a line to add to your shell config.
 
 ### Enable auto-start
 
-Add the printed line to `~/.bashrc` and/or `~/.zshrc` (or to your dotfiles'
-shared `common.bashrc`, since it's sourced from both):
+`install.sh` already runs the menu for you (see above). If you need to
+re-run it later — e.g. after adding a new shell config — call it directly:
 
 ```bash
-[[ $- == *i* ]] && [ -z "$MATRIX_WATCH_PID" ] && { "$HOME/.local/bin/screensaver-watch.sh" & MATRIX_WATCH_PID=$!; disown; }
+~/.local/bin/enable-watcher.sh
 ```
 
-This starts one background watcher per interactive shell session, guarded so
-it won't double-spawn if the file is sourced twice.
+It detects which shell config files you have (`~/.config/bash/common.bashrc`,
+`~/.bashrc`, `~/.zshrc`) and lets you pick one, several, or all of them via a
+simple terminal menu. It's idempotent — re-running it won't duplicate the
+line if it's already present.
 
 Make sure `~/.local/bin` is on your `PATH`:
 
